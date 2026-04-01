@@ -3,5 +3,6 @@
   <component name="SqlDialectMappings">
     <file url="file://$PROJECT_DIR$/assets/schemas/EmployeeSchema.sql" dialect="SQLite" />
     <file url="file://$PROJECT_DIR$/assets/schemas/InventorySchema.sql" dialect="SQLite" />
+    <file url="PROJECT" dialect="SQLite" />
   </component>
 </project>
