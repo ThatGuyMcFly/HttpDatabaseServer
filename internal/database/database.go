@@ -3,11 +3,12 @@ package database
 import (
 	"database/sql"
 	"encoding/json"
-	"io"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 
+	"github.com/ThatGuyMcFly/HttpDatabaseServer/internal/session"
 	_ "modernc.org/sqlite"
 )
 
@@ -66,6 +67,26 @@ func ConnectDatabase(databaseName DatabaseFileName) Database {
 		Database:     db,
 	}
 }
+
+func extractQueries(query string) []Query {
+	if query == "" {
+		return nil
+	}
+
+	var queries []Query
+
+	var queryStrings = strings.Split(query, "&")
+
+	for _, queryString := range queryStrings {
+		var key = strings.Split(queryString, "=")[0]
+		var value = strings.Split(queryString, "=")[1]
+		queries = append(queries, Query{Key: key, Value: value})
+	}
+
+	return queries
+}
+
+//----------- Query Functions ------------//
 
 func constructInsertQuery(tableName string, dataMap map[string]any) string {
 	var insertQuery = INSERT.String() + " INTO " + tableName + " ("
@@ -164,6 +185,8 @@ func constructDeleteQuery(tableName string, queries []Query) string {
 	return deleteQuery + parameterString
 }
 
+//------------ Employee Functions ------------//
+
 func roleNameToRoleId(role string) int {
 	lowerRole := strings.TrimSpace(strings.ToLower(role))
 
@@ -179,72 +202,6 @@ func roleNameToRoleId(role string) int {
 	default:
 		return 0
 	}
-}
-
-func AddEmployee(database Database, employeeData *json.Decoder) ([]int, error) {
-
-	var newIds []int
-
-	for {
-		var temp Employee
-		err := employeeData.Decode(&temp)
-
-		if err != nil && err != io.EOF {
-			log.Println(err)
-			return nil, AddEmployeeError{}
-		} else if err == io.EOF {
-			break
-		}
-
-		roleId := roleNameToRoleId(temp.Role)
-
-		if roleId == 0 {
-			return nil, InvalidRoleError{}
-		}
-
-		var employeeMap = map[string]any{
-			"firstName": temp.FirstName,
-			"lastName":  temp.LastName,
-			"roleId":    roleId,
-		}
-
-		insertQuery := constructInsertQuery("Employee", employeeMap)
-
-		result, err := database.Database.Exec(insertQuery)
-		if err != nil {
-			log.Println(err)
-			return nil, AddEmployeeError{}
-		}
-
-		id, err := result.LastInsertId()
-		if err != nil {
-			log.Println(err)
-		}
-
-		log.Printf("Added Employee with ID: %d\n", id)
-
-		newIds = append(newIds, int(id))
-	}
-
-	return newIds, nil
-}
-
-func extractQueries(query string) []Query {
-	if query == "" {
-		return nil
-	}
-
-	var queries []Query
-
-	var queryStrings = strings.Split(query, "&")
-
-	for _, queryString := range queryStrings {
-		var key = strings.Split(queryString, "=")[0]
-		var value = strings.Split(queryString, "=")[1]
-		queries = append(queries, Query{Key: key, Value: value})
-	}
-
-	return queries
 }
 
 func getRoleTitle(database Database, roleId int) string {
@@ -267,6 +224,42 @@ func getRoleTitle(database Database, roleId int) string {
 	}
 
 	return ""
+}
+
+func AddEmployee(database Database, employee Employee) (int, error) {
+
+	roleId := roleNameToRoleId(employee.Role)
+
+	if roleId == 0 {
+		return int(math.NaN()), InvalidRoleError{}
+	}
+
+	var employeeMap = map[string]any{
+		"firstName": employee.FirstName,
+		"lastName":  employee.LastName,
+		"roleId":    roleId,
+	}
+
+	if employee.EmployeeId != 0 {
+		employeeMap["employeeId"] = employee.EmployeeId
+	}
+
+	insertQuery := constructInsertQuery("Employee", employeeMap)
+
+	result, err := database.Database.Exec(insertQuery)
+	if err != nil {
+		log.Println(err)
+		return int(math.NaN()), AddEmployeeError{}
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		log.Println(err)
+	}
+
+	log.Printf("Added Employee with ID: %d\n", id)
+
+	return int(id), nil
 }
 
 func GetEmployees(database Database, queryString string) []Employee {
@@ -332,6 +325,56 @@ func DeleteEmployee(database Database, queryString string) error {
 	return nil
 }
 
+func AddEmployeePassword(database Database, employeeId int, password string) error {
+	var passwordMap = map[string]any{
+		"employeeId": employeeId,
+		"password":   password,
+		"expired":    0,
+	}
+
+	insetQuery := constructInsertQuery("Password", passwordMap)
+
+	_, err := database.Database.Exec(insetQuery)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GetEmployeePassword(database Database, employeeId int) (string, bool) {
+	var tableNames = []string{
+		"Password",
+	}
+
+	var columns = []string{
+		"password",
+		"expired",
+	}
+
+	queries := extractQueries("employeeId=" + strconv.Itoa(employeeId))
+
+	selectQuery := constructSelectQuery(tableNames, columns, queries)
+	var rows, err = database.Database.Query(selectQuery)
+	if err != nil {
+		return "", false
+	}
+	var password = ""
+	var expired = 0
+	for rows.Next() {
+		rows.Scan(&password, &expired)
+		if expired != 0 {
+			return "", true
+		}
+
+		return password, false
+	}
+
+	return "", false
+}
+
+//------------ Item Functions ------------//
+
 func GetItems(database Database, queries []Query) []Item {
 	if database.Database == nil {
 		return nil
@@ -344,4 +387,12 @@ func GetItems(database Database, queries []Query) []Item {
 	var items []Item
 
 	return items
+}
+
+//------------ Session Functions ------------//
+
+func GetSession(database Database, queries []Query) session.Session {
+	if database.Database == nil {
+	}
+
 }

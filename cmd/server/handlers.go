@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,27 +12,6 @@ import (
 
 func getHome(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello World"))
-}
-
-func addEmployee(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
-
-	db := database.ConnectDatabase(database.EmployeeDatabase)
-
-	newIds, err := database.AddEmployee(db, decoder)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
-	}
-
-	jsonData, err := json.Marshal(newIds)
-
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(err.Error()))
-	}
-
-	w.Write(jsonData)
 }
 
 func extractQueryString(r *http.Request) string {
@@ -57,6 +35,34 @@ func writeDataAsJson(w http.ResponseWriter, data any) {
 	w.Write(jsonData)
 }
 
+//--------------------- Employee Related Handlers ---------------------//
+
+func addEmployee(w http.ResponseWriter, r *http.Request) {
+	decoder := json.NewDecoder(r.Body)
+
+	db := database.ConnectDatabase(database.EmployeeDatabase)
+	defer db.Database.Close()
+
+	var tempEmployee database.Employee
+	err := decoder.Decode(&tempEmployee)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	newId, err := database.AddEmployee(db, tempEmployee)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	writeDataAsJson(w, newId)
+}
+
 func getEmployees(w http.ResponseWriter, r *http.Request) {
 	db := database.ConnectDatabase(database.EmployeeDatabase)
 	defer db.Database.Close()
@@ -71,6 +77,7 @@ func getEmployees(w http.ResponseWriter, r *http.Request) {
 func getEmployeeById(w http.ResponseWriter, r *http.Request) {
 	db := database.ConnectDatabase(database.EmployeeDatabase)
 	defer db.Database.Close()
+
 	employeeId := r.PathValue("employeeId")
 	employees := database.GetEmployees(db, "employeeId="+employeeId)
 
@@ -87,25 +94,10 @@ func updateEmployee(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Write Employee"))
 }
 
-func deleteEmployee(w http.ResponseWriter, r *http.Request) {
-	db := database.ConnectDatabase(database.EmployeeDatabase)
-	defer db.Database.Close()
-
-	var queryString = extractQueryString(r)
-
-	err := database.DeleteEmployee(db, queryString)
-
-	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("Employee not found"))
-	}
-
-	w.Write([]byte("Employee deleted"))
-}
-
 func deleteEmployeeById(w http.ResponseWriter, r *http.Request) {
 	db := database.ConnectDatabase(database.EmployeeDatabase)
 	defer db.Database.Close()
+
 	employeeId := r.PathValue("employeeId")
 	err := database.DeleteEmployee(db, "employeeId="+employeeId)
 	if err != nil {
@@ -115,6 +107,8 @@ func deleteEmployeeById(w http.ResponseWriter, r *http.Request) {
 
 	w.Write([]byte("Employee deleted"))
 }
+
+//--------------------- Item Related Handlers ---------------------//
 
 func addItem(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("addItem"))
@@ -126,14 +120,7 @@ func getItems(w http.ResponseWriter, r *http.Request) {
 
 	var items = database.GetItems(db, nil)
 
-	jsonData, err := json.Marshal(items)
-
-	if err != nil {
-		w.Write([]byte(err.Error()))
-		return
-	}
-
-	w.Write(jsonData)
+	writeDataAsJson(w, items)
 }
 
 func updateItem(w http.ResponseWriter, r *http.Request) {
@@ -144,8 +131,11 @@ func deleteItem(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("deleteItem"))
 }
 
+//--------------------- Authentication Related Handlers ---------------------//
+
 func authenticateUser(w http.ResponseWriter, r *http.Request) {
 	username, password, ok := r.BasicAuth()
+
 	if ok {
 		var employeeId, err = strconv.Atoi(username)
 		if err != nil {
@@ -158,8 +148,9 @@ func authenticateUser(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(err.Error()))
+			return
 		}
 
-		log.Println(authToken)
+		writeDataAsJson(w, authToken)
 	}
 }

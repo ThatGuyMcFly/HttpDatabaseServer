@@ -24,15 +24,6 @@ CREATE TABLE IF NOT EXISTS Password(
     FOREIGN KEY (employeeId) REFERENCES Employee(employeeId)
 );
 
-INSERT INTO Role(roleId, roleTitle) VALUES (0,'Administrator');
-INSERT INTO Role(roleId, roleTitle) VALUES (1,'Warehouse');
-INSERT INTO Role(roleId, roleTitle) VALUES (2,'SalesFloor');
-
-INSERT INTO Employee VALUES (1000000,
-                             'Admin',
-                             'Admin',
-                             0);
-
-INSERT INTO Password VALUES (1000000,
-                             'admin',
-                             1);
+INSERT INTO Role(roleId, roleTitle) VALUES (1,'Administrator');
+INSERT INTO Role(roleId, roleTitle) VALUES (2,'Warehouse');
+INSERT INTO Role(roleId, roleTitle) VALUES (3,'SalesFloor');
