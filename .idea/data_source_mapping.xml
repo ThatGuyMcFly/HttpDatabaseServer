@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$PROJECT_DIR$/assets/schemas/EmployeeSchema.sql" value="04a44faa-e2ff-4b5a-90e7-1eaf575cd2c8" />
+    <file url="file://$PROJECT_DIR$/assets/schemas/InventorySchema.sql" value="04a44faa-e2ff-4b5a-90e7-1eaf575cd2c8" />
+    <file url="file://$PROJECT_DIR$/assets/schemas/SessionSchema.sql" value="04a44faa-e2ff-4b5a-90e7-1eaf575cd2c8" />
+    <file url="file://$PROJECT_DIR$/internal/database/database.go" value="04a44faa-e2ff-4b5a-90e7-1eaf575cd2c8" />
+  </component>
+</project>
