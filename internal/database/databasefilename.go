@@ -1,13 +1,13 @@
 package database
 
-type DatabaseFileName int
+type FileName int
 
 const (
-	EmployeeDatabase DatabaseFileName = iota
+	EmployeeDatabase FileName = iota
 	InventoryDatabase
 	SessionDatabase
 )
 
-func (dm DatabaseFileName) String() string {
+func (dm FileName) String() string {
 	return []string{"employee.db", "inventory.db", "session.db"}[dm]
 }

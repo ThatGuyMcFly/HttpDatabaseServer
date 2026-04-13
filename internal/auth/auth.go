@@ -1,4 +1,4 @@
-package authentication
+package auth
 
 import (
 	"github.com/ThatGuyMcFly/HttpDatabaseServer/internal/database"

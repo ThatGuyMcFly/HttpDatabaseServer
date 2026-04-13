@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ThatGuyMcFly/HttpDatabaseServer/internal/authentication"
+	"github.com/ThatGuyMcFly/HttpDatabaseServer/internal/auth"
 	"github.com/ThatGuyMcFly/HttpDatabaseServer/internal/database"
 )
 
@@ -43,7 +43,12 @@ func addEmployee(w http.ResponseWriter, r *http.Request) {
 	db := database.ConnectDatabase(database.EmployeeDatabase)
 	defer db.Database.Close()
 
-	var tempEmployee database.Employee
+	var tempEmployee = map[string]any{
+		"firstName": "",
+		"lastName":  "",
+		"role":      "",
+	}
+
 	err := decoder.Decode(&tempEmployee)
 
 	if err != nil {
@@ -144,7 +149,7 @@ func authenticateUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		authToken, err := authentication.AuthenticateUser(employeeId, password)
+		authToken, err := auth.AuthenticateUser(employeeId, password)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(err.Error()))

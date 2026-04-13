@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/ThatGuyMcFly/HttpDatabaseServer/internal/authentication"
+	"github.com/ThatGuyMcFly/HttpDatabaseServer/internal/auth"
 	"github.com/ThatGuyMcFly/HttpDatabaseServer/internal/database"
 	"gopkg.in/ini.v1"
 )
@@ -72,11 +72,11 @@ func initializeAdmin() bool {
 	employees := database.GetEmployees(db, "employeeId="+strconv.Itoa(DefaultAdminId))
 
 	if len(employees) == 0 {
-		admin := database.Employee{
-			EmployeeId: DefaultAdminId,
-			FirstName:  "Admin",
-			LastName:   "Admin",
-			Role:       "admin",
+		admin := map[string]any{
+			"employeeId": DefaultAdminId,
+			"firstName":  "Admin",
+			"lastName":   "Admin",
+			"role":       "admin",
 		}
 		_, err := database.AddEmployee(db, admin)
 		if err != nil {
@@ -84,7 +84,7 @@ func initializeAdmin() bool {
 			return false
 		}
 
-		err = authentication.SetUserPassword(DefaultAdminId, "admin")
+		err = auth.SetUserPassword(DefaultAdminId, "admin")
 
 		if err != nil {
 			log.Println(err)

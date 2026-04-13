@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"encoding/json"
 	"log"
 	"math"
 	"strconv"
@@ -15,8 +14,10 @@ import (
 const driverName = "sqlite"
 const databasePath = "assets/databases/"
 
+var notAnInt = int(math.NaN())
+
 type Database struct {
-	DatabaseName DatabaseFileName
+	DatabaseName FileName
 	Database     *sql.DB
 }
 
@@ -31,13 +32,6 @@ type Item struct {
 	WarehouseStock  int
 }
 
-type Employee struct {
-	EmployeeId int
-	FirstName  string
-	LastName   string
-	Role       string
-}
-
 type Query struct {
 	Key   string
 	Value string
@@ -49,13 +43,25 @@ func (e AddEmployeeError) Error() string {
 	return "Failed to add employee"
 }
 
+type InvalidKeyError struct{}
+
+func (e InvalidKeyError) Error() string {
+	return "Invalid key"
+}
+
 type InvalidRoleError struct{}
 
 func (e InvalidRoleError) Error() string {
 	return "Invalid role"
 }
 
-func ConnectDatabase(databaseName DatabaseFileName) Database {
+type InvalidDatabaseError struct{}
+
+func (e InvalidDatabaseError) Error() string {
+	return "Invalid database"
+}
+
+func ConnectDatabase(databaseName FileName) Database {
 
 	db, err := sql.Open(driverName, databasePath+databaseName.String())
 	if err != nil {
@@ -163,9 +169,9 @@ func constructSelectQuery(tableNames []string, columnNames []string, queries []Q
 	return selectQuery + " WHERE " + parameterString
 }
 
-func constructUpdateQuery(tableName string, data string, queries []Query) string {
-	return ""
-}
+//func constructUpdateQuery(tableName string, data string, queries []Query) string {
+//	return ""
+//}
 
 func constructDeleteQuery(tableName string, queries []Query) string {
 	if len(queries) == 0 {
@@ -187,8 +193,15 @@ func constructDeleteQuery(tableName string, queries []Query) string {
 
 //------------ Employee Functions ------------//
 
-func roleNameToRoleId(role string) int {
-	lowerRole := strings.TrimSpace(strings.ToLower(role))
+func roleNameToRoleId(role any) int {
+
+	roleString, ok := role.(string)
+
+	if !ok {
+		return 0
+	}
+
+	lowerRole := strings.TrimSpace(strings.ToLower(roleString))
 
 	switch lowerRole {
 	case "administrator":
@@ -226,22 +239,51 @@ func getRoleTitle(database Database, roleId int) string {
 	return ""
 }
 
-func AddEmployee(database Database, employee Employee) (int, error) {
-
-	roleId := roleNameToRoleId(employee.Role)
-
-	if roleId == 0 {
-		return int(math.NaN()), InvalidRoleError{}
-	}
-
+func createEmployeeMap(employee map[string]any) (map[string]any, error) {
 	var employeeMap = map[string]any{
-		"firstName": employee.FirstName,
-		"lastName":  employee.LastName,
-		"roleId":    roleId,
+		"firstName": "",
+		"lastName":  "",
+		"roleId":    0,
 	}
 
-	if employee.EmployeeId != 0 {
-		employeeMap["employeeId"] = employee.EmployeeId
+	expectedKeys := []string{
+		"employeeId",
+		"firstName",
+		"lastName",
+		"role",
+	}
+
+	for _, expectedKey := range expectedKeys {
+		value, ok := employee[expectedKey]
+		if !ok {
+			if expectedKey == "employeeId" {
+				continue
+			}
+
+			return nil, InvalidKeyError{}
+		}
+
+		if expectedKey == "role" {
+			value = roleNameToRoleId(value)
+
+			if value == 0 {
+				return nil, InvalidRoleError{}
+			}
+
+			expectedKey = "roleId"
+		}
+
+		employeeMap[expectedKey] = value
+	}
+
+	return employeeMap, nil
+}
+
+func AddEmployee(database Database, employee map[string]any) (int, error) {
+
+	employeeMap, err := createEmployeeMap(employee)
+	if err != nil {
+		return 0, err
 	}
 
 	insertQuery := constructInsertQuery("Employee", employeeMap)
@@ -249,7 +291,7 @@ func AddEmployee(database Database, employee Employee) (int, error) {
 	result, err := database.Database.Exec(insertQuery)
 	if err != nil {
 		log.Println(err)
-		return int(math.NaN()), AddEmployeeError{}
+		return 0, AddEmployeeError{}
 	}
 
 	id, err := result.LastInsertId()
@@ -262,7 +304,7 @@ func AddEmployee(database Database, employee Employee) (int, error) {
 	return int(id), nil
 }
 
-func GetEmployees(database Database, queryString string) []Employee {
+func GetEmployees(database Database, queryString string) []map[string]any {
 	if database.Database == nil {
 		return nil
 	}
@@ -291,25 +333,34 @@ func GetEmployees(database Database, queryString string) []Employee {
 		return nil
 	}
 
-	var employees []Employee
+	var employees []map[string]any
 	for rows.Next() {
-		var employee = Employee{}
-		var roleNumber int
-		err = rows.Scan(&employee.EmployeeId, &employee.FirstName, &employee.LastName, &roleNumber)
+		var employeeId, roleNumber int
+		var firstName, lastName string
+
+		err = rows.Scan(&employeeId, &firstName, &lastName, &roleNumber)
 		if err != nil {
 			return nil
 		}
 
-		employee.Role = getRoleTitle(database, roleNumber)
+		role := getRoleTitle(database, roleNumber)
+
+		employee := map[string]any{
+			"employeeId": employeeId,
+			"firstName":  firstName,
+			"lastName":   lastName,
+			"role":       role,
+		}
+
 		employees = append(employees, employee)
 	}
 
 	return employees
 }
 
-func UpdateEmployee(database Database, employeeData *json.Decoder) error {
-	return nil
-}
+//func UpdateEmployee(database Database, employeeData *json.Decoder) error {
+//	return nil
+//}
 
 func DeleteEmployee(database Database, queryString string) error {
 	var queries = extractQueries(queryString)
@@ -375,24 +426,77 @@ func GetEmployeePassword(database Database, employeeId int) (string, bool) {
 
 //------------ Item Functions ------------//
 
-func GetItems(database Database, queries []Query) []Item {
+func GetItems(database Database, queries []Query) ([]Item, error) {
 	if database.Database == nil {
-		return nil
+		return nil, InvalidDatabaseError{}
 	}
 
 	if database.DatabaseName != InventoryDatabase {
-		return nil
+		return nil, InvalidDatabaseError{}
 	}
 
 	var items []Item
 
-	return items
+	return items, nil
 }
 
 //------------ Session Functions ------------//
 
-func GetSession(database Database, queries []Query) session.Session {
+func AddSession(database Database, session session.Session) error {
 	if database.Database == nil {
+		return InvalidDatabaseError{}
 	}
 
+	if database.DatabaseName != SessionDatabase {
+		return InvalidDatabaseError{}
+	}
+
+	sessionData := map[string]any{
+		"employeeId":      session.EetEmployeeId(),
+		"authToken":       session.GetAuthToken(),
+		"datetimeCreated": session.GetCreated(),
+		"lastAccessed":    session.GetLastAccessed(),
+	}
+
+	addSessionQuery := constructInsertQuery("Session", sessionData)
+
+	_, err := database.Database.Exec(addSessionQuery)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GetSession(database Database, authToken string) ([]session.Session, error) {
+	if database.Database == nil {
+		return nil, InvalidDatabaseError{}
+	}
+
+	if database.DatabaseName != SessionDatabase {
+		return nil, InvalidDatabaseError{}
+	}
+
+	sessionQuery := "Select * from Session where authToken = ?"
+
+	rows, err := database.Database.Query(sessionQuery, authToken)
+	if err != nil {
+		return nil, err
+	}
+
+	var sessions []session.Session
+
+	for rows.Next() {
+		var currentSession = session.Session{}
+
+		err = rows.Scan(&currentSession)
+		if err != nil {
+			continue
+		}
+
+		sessions = append(sessions, currentSession)
+	}
+
+	return sessions, nil
 }
